@@ -33,7 +33,7 @@ const handleApiError = (error: any): string => {
     return "Лимит запросов исчерпан. Пожалуйста, подождите 1 минуту. Бесплатный API имеет ограничения на частоту запросов.";
   }
   if (msg.includes('limit: 0') || msg.includes('not found')) {
-    return "Эта модель недоступна для вашего ключа. Мы автоматически переключились на Flash-версию. Если ошибка повторяется, попробуйте создать новый проект в Google AI Studio.";
+    return "Эта модель недоступна для вашего ключа. Попробуйте создать новый проект в Google AI Studio и получить новый ключ.";
   }
   return `Ошибка: ${msg || "Не удалось связаться с AI"}. Проверьте соединение.`;
 }
@@ -49,11 +49,19 @@ export const checkTaskSubmission = async (
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const systemInstruction = `
-        Ты — эксперт по Prompt Engineering. Оценивай задание студента.
-        Тема: ${dayTitle}
-        Задание: ${taskDescription}
-        Критерии: ${gradingCriteria}
-        Отвечай строго на русском языке в формате JSON.
+        Ты — эксперт-ментор по Prompt Engineering. Твоя задача — проверить задание студента.
+        
+        Контекст урока: ${dayTitle}
+        Задание, которое выполнял студент: ${taskDescription}
+        Критерии успешности: ${gradingCriteria}
+        
+        Твои правила оценки:
+        1. Будь строгим, но справедливым.
+        2. Если в задании требовался JSON или конкретный формат — проверь его наличие.
+        3. Если промпт студента "ленивый" (слишком короткий), не засчитывай его.
+        4. Объясняй, КАК улучшить промпт, используя профессиональную терминологию (Context, Few-shot, Chain of Thought, Delimiters).
+        
+        ОТВЕЧАЙ СТРОГО НА РУССКОМ ЯЗЫКЕ. Выходной формат: JSON.
       `;
 
     const response = await ai.models.generateContent({
@@ -77,7 +85,8 @@ export const checkTaskSubmission = async (
     if (response.text) {
         return validateGradingResponse(JSON.parse(response.text));
     }
-    throw new Error("Пустой ответ");
+    throw new Error("Пустой ответ от AI.");
+
   } catch (error: any) {
     return {
       passed: false,
@@ -92,14 +101,24 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         const systemInstruction = `
-            Ты — создатель курса. Сгенерируй случайное сложное задание по промпт-инжинирингу.
-            Темы: Кодинг, Творчество, Аналитика.
-            Отвечай строго на русском в JSON.
+            Ты — ведущий методолог курса по Prompt Engineering. Твоя задача — сгенерировать УНИКАЛЬНЫЙ и СЛОЖНЫЙ челендж для продвинутого студента.
+            
+            Каждое задание должно заставлять студента использовать комбинацию техник:
+            - Ролевые модели (Persona)
+            - Ограничения (Negative constraints)
+            - Цепочки рассуждений (Chain of Thought)
+            - Структурированный вывод (JSON/Markdown/Tables)
+            - Few-shot примеры
+            
+            Темы для заданий (выбирай случайно): 
+            Архитектура ПО, Психотерапия через ИИ, Глубокая аналитика данных, Креативное письмо, Юридический разбор, Игровая механика, Космическая логистика.
+            
+            ОТВЕЧАЙ СТРОГО НА РУССКОМ ЯЗЫКЕ. Выходной формат: JSON.
         `;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: "Сгенерируй уникальный челендж.",
+            contents: "Сгенерируй случайное экспертное задание по промпт-инжинирингу. Сделай его максимально необычным и сложным.",
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -107,10 +126,10 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
                     type: Type.OBJECT,
                     properties: {
                         title: { type: Type.STRING },
-                        theory: { type: Type.STRING },
-                        example: { type: Type.STRING },
-                        task: { type: Type.STRING },
-                        gradingCriteria: { type: Type.STRING }
+                        theory: { type: Type.STRING, description: "Краткий ликбез по технике, которая поможет в задании." },
+                        example: { type: Type.STRING, description: "Пример промпта или структуры." },
+                        task: { type: Type.STRING, description: "Само задание." },
+                        gradingCriteria: { type: Type.STRING, description: "Четкие пункты, по которым ты будешь оценивать ответ." }
                     },
                     required: ["title", "theory", "example", "task", "gradingCriteria"]
                 }
@@ -120,7 +139,7 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
         if (response.text) {
             return validateTaskResponse(JSON.parse(response.text));
         }
-        throw new Error("Пустой ответ");
+        throw new Error("Пустой ответ от AI.");
     } catch (error: any) {
         throw new Error(handleApiError(error));
     }

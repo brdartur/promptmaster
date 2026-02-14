@@ -3,7 +3,7 @@ import { generateDailyTask } from '../services/geminiService';
 import { DayCurriculum } from '../types';
 import DayContent from './DayContent';
 import TaskInterface from './TaskInterface';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 
 interface InfinitePracticeProps {
     onTaskComplete: (score: number) => void;
@@ -12,7 +12,7 @@ interface InfinitePracticeProps {
 const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) => {
     const [task, setTask] = useState<DayCurriculum | null>(null);
     const [loading, setLoading] = useState(false);
-    const [key, setKey] = useState(0); // Force reset task interface on new task
+    const [key, setKey] = useState(0); 
 
     const handleGenerate = async () => {
         setLoading(true);
@@ -20,9 +20,9 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
             const newTask = await generateDailyTask();
             setTask(newTask);
             setKey(prev => prev + 1);
-        } catch (e) {
-            console.error(e);
-            alert("Не удалось сгенерировать задание. Проверьте API Key.");
+        } catch (e: any) {
+            console.error("Full Error Details:", e);
+            alert(`Ошибка генерации: ${e?.message || 'Неизвестная ошибка'}. Убедитесь, что API ключ корректно настроен в Environment Variables.`);
         } finally {
             setLoading(false);
         }
@@ -82,8 +82,8 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
                         key={key}
                         data={task}
                         onTaskComplete={() => {}}
-                        onNextDay={handleGenerate} // "Next Day" here just generates a new one
-                        isLastDay={false} // Always allows "Next"
+                        onNextDay={handleGenerate}
+                        isLastDay={false}
                         initialStatus="active"
                     />
                  </>

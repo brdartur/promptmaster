@@ -1,17 +1,12 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { GradingResult, DayCurriculum } from "../types";
-
-// Always use the prescribed initialization format as per Google GenAI guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Helper function to validate response format
 const validateGradingResponse = (response: any): GradingResult => {
   if (typeof response.passed !== 'boolean' || typeof response.feedback !== 'string') {
-     // Fallback if structured output fails somehow
      return {
          passed: false,
-         feedback: "Error parsing AI response. Please try again.",
+         feedback: "Ошибка разбора ответа AI. Пожалуйста, попробуйте еще раз.",
          score: 0
      }
   }
@@ -19,15 +14,14 @@ const validateGradingResponse = (response: any): GradingResult => {
 }
 
 const validateTaskResponse = (response: any): DayCurriculum => {
-    // Basic validation to ensure we have the required fields
     return {
-        id: 999, // Placeholder ID for generated tasks
-        week: 2, // Treated as advanced
+        id: 999,
+        week: 2,
         title: response.title || "Daily Challenge",
-        theory: response.theory || "Practice your skills.",
-        example: response.example || "No example provided.",
-        task: response.task || "Complete the prompt.",
-        gradingCriteria: response.gradingCriteria || "Standard criteria."
+        theory: response.theory || "Практикуйте свои навыки.",
+        example: response.example || "Пример не предоставлен.",
+        task: response.task || "Выполните задание.",
+        gradingCriteria: response.gradingCriteria || "Стандартные критерии."
     };
 }
 
@@ -39,19 +33,22 @@ export const checkTaskSubmission = async (
 ): Promise<GradingResult> => {
     
   try {
-      // Prompt engineering assessment is a complex reasoning task, requiring gemini-3-pro-preview
-      const systemInstruction = `
-        You are an expert Prompt Engineering Mentor. 
-        You are grading a student's submission for a specific day of a course.
+    // Create instance inside function to ensure fresh API Key usage
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    const systemInstruction = `
+        Ты — эксперт-ментор по Prompt Engineering. 
+        Ты оцениваешь задание студента для курса.
         
-        Current Module: ${dayTitle}
-        Task: ${taskDescription}
-        Grading Criteria: ${gradingCriteria}
+        Тема модуля: ${dayTitle}
+        Задание: ${taskDescription}
+        Критерии оценки: ${gradingCriteria}
         
-        Evaluate the User Submission strictly based on the Grading Criteria.
-        Be constructive, encouraging, but firm on the criteria.
-        If they fail, explain exactly what is missing based on the theory.
-        If they pass, give a brief compliment and explain why it was good.
+        Оценивай решение пользователя строго по критериям.
+        Будь конструктивным и подбадривающим, но строгим к деталям.
+        Если задание не выполнено, объясни точно, чего не хватает.
+        Если выполнено, похвали и отметь сильные стороны.
+        ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ.
       `;
 
     const response = await ai.models.generateContent({
@@ -65,15 +62,15 @@ export const checkTaskSubmission = async (
           properties: {
             passed: {
               type: Type.BOOLEAN,
-              description: "Whether the user successfully completed the task based on criteria.",
+              description: "Выполнено ли задание успешно.",
             },
             feedback: {
               type: Type.STRING,
-              description: "Constructive feedback explaining the grade. Use Markdown formatting.",
+              description: "Конструктивная обратная связь. Используй Markdown.",
             },
             score: {
               type: Type.INTEGER,
-              description: "A score from 1 to 100 indicating quality.",
+              description: "Оценка от 1 до 100.",
             },
           },
           required: ["passed", "feedback", "score"],
@@ -86,11 +83,11 @@ export const checkTaskSubmission = async (
     }
     throw new Error("Empty response from AI");
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
     return {
       passed: false,
-      feedback: "Failed to connect to the AI Mentor. Please check your connection or API key and try again.",
+      feedback: `Не удалось связаться с AI ментором. Ошибка: ${error?.message || 'Unknown'}. Проверьте соединение или API ключ.`,
       score: 0
     };
   }
@@ -98,24 +95,27 @@ export const checkTaskSubmission = async (
 
 export const generateDailyTask = async (): Promise<DayCurriculum> => {
     try {
-        // Creative curriculum generation involves complex reasoning, utilizing gemini-3-pro-preview
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
         const systemInstruction = `
-            You are a Prompt Engineering Course Creator.
-            Generate a UNIQUE, challenging, and random practical exercise for a student.
+            Ты — создатель курса по Prompt Engineering.
+            Сгенерируй УНИКАЛЬНОЕ, сложное и случайное практическое упражнение для студента.
             
-            Topics can vary: Marketing, Coding, Creative Writing, Data Analysis, Roleplaying, Crisis Management.
+            Темы: Маркетинг, Кодинг, Творчество, Анализ данных, Ролевые игры, Управление кризисами.
             
-            The output must be a structured lesson containing:
-            1. Title: Catchy title for the challenge.
-            2. Theory: A brief (2-3 sentences) tip or technique related to the task.
-            3. Example: A short example of input/output relevant to the technique.
-            4. Task: A specific, hard scenario the user must solve by writing a prompt.
-            5. GradingCriteria: What specifically should be in their prompt?
+            Вывод должен быть структурированным уроком:
+            1. title: Цепляющее название челенджа.
+            2. theory: Краткий совет или техника (2-3 предложения), связанная с заданием.
+            3. example: Короткий пример input/output.
+            4. task: Конкретный сложный сценарий, который пользователь должен решить, написав промпт.
+            5. gradingCriteria: Что именно должно быть в их промпте?
+            
+            ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ.
         `;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
-            contents: "Generate a new random daily challenge.",
+            contents: "Сгенерируй новое случайное ежедневное задание.",
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -137,7 +137,7 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
             return validateTaskResponse(JSON.parse(response.text));
         }
         throw new Error("Empty response");
-    } catch (error) {
+    } catch (error: any) {
         console.error("Generative Task Error", error);
         throw error;
     }

@@ -25,6 +25,17 @@ const validateTaskResponse = (response: any): DayCurriculum => {
     };
 }
 
+const handleApiError = (error: any): string => {
+  console.error("Gemini API Error:", error);
+  if (error?.message?.includes('429') || error?.message?.includes('quota')) {
+    return "Превышена квота бесплатных запросов к AI. Пожалуйста, подождите несколько минут или проверьте настройки API ключа в Google AI Studio.";
+  }
+  if (error?.message?.includes('API_KEY_INVALID')) {
+    return "Неверный API ключ. Пожалуйста, проверьте настройки переменной окружения GEMINI_API_KEY.";
+  }
+  return error?.message || "Произошла неизвестная ошибка при связи с AI ментором.";
+}
+
 export const checkTaskSubmission = async (
   dayTitle: string,
   taskDescription: string,
@@ -33,7 +44,6 @@ export const checkTaskSubmission = async (
 ): Promise<GradingResult> => {
     
   try {
-    // Create instance inside function to ensure fresh API Key usage
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const systemInstruction = `
@@ -52,7 +62,7 @@ export const checkTaskSubmission = async (
       `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview', // Switched from pro to flash to avoid 429 quota issues
       contents: userSubmission,
       config: {
         systemInstruction: systemInstruction,
@@ -81,13 +91,12 @@ export const checkTaskSubmission = async (
     if (response.text) {
         return validateGradingResponse(JSON.parse(response.text));
     }
-    throw new Error("Empty response from AI");
+    throw new Error("Пустой ответ от AI.");
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
     return {
       passed: false,
-      feedback: `Не удалось связаться с AI ментором. Ошибка: ${error?.message || 'Unknown'}. Проверьте соединение или API ключ.`,
+      feedback: handleApiError(error),
       score: 0
     };
   }
@@ -114,7 +123,7 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3-flash-preview', // Switched from pro to flash to avoid 429 quota issues
             contents: "Сгенерируй новое случайное ежедневное задание.",
             config: {
                 systemInstruction: systemInstruction,
@@ -136,9 +145,8 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
         if (response.text) {
             return validateTaskResponse(JSON.parse(response.text));
         }
-        throw new Error("Empty response");
+        throw new Error("Пустой ответ от AI.");
     } catch (error: any) {
-        console.error("Generative Task Error", error);
-        throw error;
+        throw new Error(handleApiError(error));
     }
 }

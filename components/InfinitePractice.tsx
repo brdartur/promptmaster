@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateDailyTask } from '../services/geminiService';
 import { DayCurriculum } from '../types';
 import DayContent from './DayContent';
 import TaskInterface from './TaskInterface';
-import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, RefreshCw, Bookmark } from 'lucide-react';
+
+const INFINITE_TASK_KEY = 'prompt-master-infinite-task';
 
 interface InfinitePracticeProps {
     onTaskComplete: (score: number) => void;
@@ -14,6 +16,25 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [key, setKey] = useState(0); 
+
+    // Load saved task on mount
+    useEffect(() => {
+        const saved = localStorage.getItem(INFINITE_TASK_KEY);
+        if (saved) {
+            try {
+                setTask(JSON.parse(saved));
+            } catch (e) {
+                console.error("Failed to parse saved infinite task");
+            }
+        }
+    }, []);
+
+    // Save task when it changes
+    useEffect(() => {
+        if (task) {
+            localStorage.setItem(INFINITE_TASK_KEY, JSON.stringify(task));
+        }
+    }, [task]);
 
     const handleGenerate = async () => {
         setLoading(true);
@@ -28,6 +49,11 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleClear = () => {
+        setTask(null);
+        localStorage.removeItem(INFINITE_TASK_KEY);
     };
 
     if (error && !loading) {
@@ -59,7 +85,10 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
     if (!task && !loading) {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in">
-                <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 p-8 rounded-3xl border border-indigo-500/30 max-w-lg">
+                <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 p-8 rounded-3xl border border-indigo-500/30 max-w-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <Sparkles size={120} />
+                    </div>
                     <div className="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-600/20 transform rotate-3">
                         <Sparkles className="text-white" size={40} />
                     </div>
@@ -92,9 +121,17 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4">
              <div className="flex items-center justify-between mb-8">
-                <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-                    ∞ Daily Challenge
-                </h1>
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                        <Bookmark size={20} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+                            ∞ Daily Challenge
+                        </h1>
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Уровень: Эксперт</p>
+                    </div>
+                </div>
                 <button 
                     onClick={handleGenerate}
                     className="text-sm bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors border border-gray-700 flex items-center gap-2"
@@ -104,7 +141,7 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
              </div>
              
              {task && (
-                 <>
+                 <div className="relative">
                     <DayContent data={task} />
                     <TaskInterface 
                         key={key}
@@ -114,7 +151,7 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
                         isLastDay={false}
                         initialStatus="active"
                     />
-                 </>
+                 </div>
              )}
         </div>
     );

@@ -26,14 +26,16 @@ const validateTaskResponse = (response: any): DayCurriculum => {
 }
 
 const handleApiError = (error: any): string => {
-  console.error("Gemini API Error:", error);
-  if (error?.message?.includes('429') || error?.message?.includes('quota')) {
-    return "Превышена квота бесплатных запросов к AI. Пожалуйста, подождите несколько минут или проверьте настройки API ключа в Google AI Studio.";
+  console.error("Gemini API Error Detail:", error);
+  const msg = error?.message || "";
+  
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return "Лимит запросов исчерпан. Пожалуйста, подождите 1 минуту. Бесплатный API имеет ограничения на частоту запросов.";
   }
-  if (error?.message?.includes('API_KEY_INVALID')) {
-    return "Неверный API ключ. Пожалуйста, проверьте настройки переменной окружения GEMINI_API_KEY.";
+  if (msg.includes('limit: 0') || msg.includes('not found')) {
+    return "Эта модель недоступна для вашего ключа. Мы автоматически переключились на Flash-версию. Если ошибка повторяется, попробуйте создать новый проект в Google AI Studio.";
   }
-  return error?.message || "Произошла неизвестная ошибка при связи с AI ментором.";
+  return `Ошибка: ${msg || "Не удалось связаться с AI"}. Проверьте соединение.`;
 }
 
 export const checkTaskSubmission = async (
@@ -47,22 +49,15 @@ export const checkTaskSubmission = async (
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const systemInstruction = `
-        Ты — эксперт-ментор по Prompt Engineering. 
-        Ты оцениваешь задание студента для курса.
-        
-        Тема модуля: ${dayTitle}
+        Ты — эксперт по Prompt Engineering. Оценивай задание студента.
+        Тема: ${dayTitle}
         Задание: ${taskDescription}
-        Критерии оценки: ${gradingCriteria}
-        
-        Оценивай решение пользователя строго по критериям.
-        Будь конструктивным и подбадривающим, но строгим к деталям.
-        Если задание не выполнено, объясни точно, чего не хватает.
-        Если выполнено, похвали и отметь сильные стороны.
-        ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ.
+        Критерии: ${gradingCriteria}
+        Отвечай строго на русском языке в формате JSON.
       `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Switched from pro to flash to avoid 429 quota issues
+      model: 'gemini-3-flash-preview', 
       contents: userSubmission,
       config: {
         systemInstruction: systemInstruction,
@@ -70,18 +65,9 @@ export const checkTaskSubmission = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            passed: {
-              type: Type.BOOLEAN,
-              description: "Выполнено ли задание успешно.",
-            },
-            feedback: {
-              type: Type.STRING,
-              description: "Конструктивная обратная связь. Используй Markdown.",
-            },
-            score: {
-              type: Type.INTEGER,
-              description: "Оценка от 1 до 100.",
-            },
+            passed: { type: Type.BOOLEAN },
+            feedback: { type: Type.STRING },
+            score: { type: Type.INTEGER },
           },
           required: ["passed", "feedback", "score"],
         },
@@ -91,8 +77,7 @@ export const checkTaskSubmission = async (
     if (response.text) {
         return validateGradingResponse(JSON.parse(response.text));
     }
-    throw new Error("Пустой ответ от AI.");
-
+    throw new Error("Пустой ответ");
   } catch (error: any) {
     return {
       passed: false,
@@ -107,24 +92,14 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         const systemInstruction = `
-            Ты — создатель курса по Prompt Engineering.
-            Сгенерируй УНИКАЛЬНОЕ, сложное и случайное практическое упражнение для студента.
-            
-            Темы: Маркетинг, Кодинг, Творчество, Анализ данных, Ролевые игры, Управление кризисами.
-            
-            Вывод должен быть структурированным уроком:
-            1. title: Цепляющее название челенджа.
-            2. theory: Краткий совет или техника (2-3 предложения), связанная с заданием.
-            3. example: Короткий пример input/output.
-            4. task: Конкретный сложный сценарий, который пользователь должен решить, написав промпт.
-            5. gradingCriteria: Что именно должно быть в их промпте?
-            
-            ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ.
+            Ты — создатель курса. Сгенерируй случайное сложное задание по промпт-инжинирингу.
+            Темы: Кодинг, Творчество, Аналитика.
+            Отвечай строго на русском в JSON.
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview', // Switched from pro to flash to avoid 429 quota issues
-            contents: "Сгенерируй новое случайное ежедневное задание.",
+            model: 'gemini-3-flash-preview',
+            contents: "Сгенерируй уникальный челендж.",
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -145,7 +120,7 @@ export const generateDailyTask = async (): Promise<DayCurriculum> => {
         if (response.text) {
             return validateTaskResponse(JSON.parse(response.text));
         }
-        throw new Error("Пустой ответ от AI.");
+        throw new Error("Пустой ответ");
     } catch (error: any) {
         throw new Error(handleApiError(error));
     }

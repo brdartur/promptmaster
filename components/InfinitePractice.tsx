@@ -3,7 +3,7 @@ import { generateDailyTask } from '../services/geminiService';
 import { DayCurriculum } from '../types';
 import DayContent from './DayContent';
 import TaskInterface from './TaskInterface';
-import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface InfinitePracticeProps {
     onTaskComplete: (score: number) => void;
@@ -12,21 +12,49 @@ interface InfinitePracticeProps {
 const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) => {
     const [task, setTask] = useState<DayCurriculum | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [key, setKey] = useState(0); 
 
     const handleGenerate = async () => {
         setLoading(true);
+        setError(null);
         try {
             const newTask = await generateDailyTask();
             setTask(newTask);
             setKey(prev => prev + 1);
         } catch (e: any) {
             console.error("Full Error Details:", e);
-            alert(`Ошибка генерации: ${e?.message || 'Неизвестная ошибка'}. Убедитесь, что API ключ корректно настроен в Environment Variables.`);
+            setError(e?.message || 'Неизвестная ошибка при генерации задания.');
         } finally {
             setLoading(false);
         }
     };
+
+    if (error && !loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in">
+                <div className="bg-red-900/20 p-8 rounded-3xl border border-red-500/30 max-w-lg">
+                    <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-red-600/20">
+                        <AlertCircle className="text-white" size={32} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-4">Ой! Ошибка квоты</h2>
+                    <p className="text-red-200 mb-8 text-lg opacity-80">
+                        {error}
+                    </p>
+                    <button 
+                        onClick={handleGenerate}
+                        className="w-full py-4 bg-white text-gray-900 hover:bg-gray-100 font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                        <RefreshCw className="text-red-600" size={20} />
+                        Попробовать снова
+                    </button>
+                    <p className="text-xs text-gray-500 mt-4">
+                        Бесплатная версия Gemini имеет ограничения по количеству запросов в минуту.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     if (!task && !loading) {
         return (
@@ -69,9 +97,9 @@ const InfinitePractice: React.FC<InfinitePracticeProps> = ({ onTaskComplete }) =
                 </h1>
                 <button 
                     onClick={handleGenerate}
-                    className="text-sm bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors border border-gray-700"
+                    className="text-sm bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors border border-gray-700 flex items-center gap-2"
                 >
-                    Новое задание
+                    <RefreshCw size={14} /> Новое задание
                 </button>
              </div>
              
